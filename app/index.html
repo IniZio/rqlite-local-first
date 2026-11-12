@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shared list</title>
+<style>
+  :root { font-family: system-ui, sans-serif; color: #1d2433; background: #f4f5f7; }
+  body { max-width: 34rem; margin: 2rem auto; padding: 0 1rem; }
+  header { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; }
+  h1 { font-size: 1.5rem; margin: 0; }
+  .muted { color: #6b7385; font-size: .875rem; }
+  .badge { display: inline-block; padding: .25rem .625rem; border-radius: 999px; font-size: .8125rem; font-weight: 600; }
+  .online { background: #dff5e3; color: #17652a; }
+  .offline { background: #fdecc8; color: #8a5300; }
+  .card { background: #fff; border-radius: .75rem; padding: 1rem; margin-top: 1rem; box-shadow: 0 1px 2px #0001; }
+  form { display: flex; gap: .5rem; }
+  input[type=text] { flex: 1; padding: .5rem .75rem; font: inherit; border: 1px solid #ccd1db; border-radius: .5rem; }
+  button { font: inherit; padding: .5rem 1rem; border: 0; border-radius: .5rem; background: #2f5bea; color: #fff; cursor: pointer; }
+  ul { list-style: none; padding: 0; margin: 0; }
+  li { display: flex; align-items: center; gap: .75rem; padding: .5rem 0; border-bottom: 1px solid #eef0f4; }
+  li:last-child { border-bottom: 0; }
+  li .text { flex: 1; }
+  li.done .text { text-decoration: line-through; color: #8a91a1; }
+  li .del { background: none; color: #a0a6b4; padding: .25rem .5rem; }
+  .pending { font-size: .75rem; color: #8a5300; }
+  .nodes { display: flex; gap: .5rem; flex-wrap: wrap; }
+  .node { padding: .25rem .625rem; border-radius: .5rem; font-size: .8125rem; background: #eef0f4; }
+  .node.up { background: #dff5e3; }
+  .node.down { background: #fbe0e0; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title">Device</h1>
+  <span id="badge" class="badge"></span>
+</header>
+<p class="muted" id="sub"></p>
+
+<div class="card">
+  <form id="add">
+    <input type="text" id="text" placeholder="Add an item" autocomplete="off" required>
+    <button>Add</button>
+  </form>
+</div>
+
+<div class="card"><ul id="items"></ul></div>
+
+<div class="card">
+  <div class="muted" style="margin-bottom:.5rem">Cluster as seen from this device's node</div>
+  <div class="nodes" id="nodes"></div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+
+function el(tag, attrs, ...children) {
+  const node = Object.assign(document.createElement(tag), attrs);
+  node.append(...children);
+  return node;
+}
+
+async function send(method, path, body) {
+  await fetch(path, { method, headers: { "Content-Type": "application/json" }, body: body && JSON.stringify(body) });
+  refresh();
+}
+
+async function refresh() {
+  const s = await (await fetch("/api/state")).json();
+  const d = s.data;
+  document.title = `Device ${s.device}`;
+  $("title").textContent = `Device ${s.device}`;
+  $("badge").className = "badge " + (d.online ? "online" : "offline");
+  $("badge").textContent = d.online ? "Online · quorum"
+    : d.read_level === "unreachable" ? "Own node down"
+    : `Offline · ${d.pending} queued`;
+  $("sub").textContent = `node ${s.node} · raft ${s.cluster.raft_state} · read level ${d.read_level}` +
+    (d.online ? "" : " (local copy, may be stale)");
+
+  $("items").replaceChildren(...d.items.map((it) => {
+    const box = el("input", { type: "checkbox", checked: it.done });
+    box.onchange = () => send("POST", `/api/items/${it.id}/done`, { done: box.checked });
+    const del = el("button", { className: "del", title: "Delete" }, "✕");
+    del.onclick = () => send("DELETE", `/api/items/${it.id}`);
+    return el("li", { className: it.done ? "done" : "" },
+      box,
+      el("span", { className: "text" }, it.text),
+      it.pending ? el("span", { className: "pending" }, "queued") : el("span", { className: "muted" }, `by ${it.updated_by}`),
+      del);
+  }));
+
+  $("nodes").replaceChildren(...s.cluster.nodes.map((n) =>
+    el("span", { className: "node " + (n.reachable ? "up" : "down") },
+      `node ${n.id}${n.leader ? " ★ leader" : ""}${n.reachable ? "" : " · unreachable"}`)));
+}
+
+$("add").onsubmit = (e) => {
+  e.preventDefault();
+  send("POST", "/api/items", { text: $("text").value });
+  $("text").value = "";
+};
+
+refresh();
+setInterval(refresh, 1000);
+</script>
+</body>
+</html>
