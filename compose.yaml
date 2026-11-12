@@ -1,0 +1,67 @@
+name: rqlite-local-first
+
+
+x-rqlite: &rqlite
+  image: rqlite/rqlite:10.7.1
+  restart: unless-stopped
+
+x-app: &app
+  build: ./app
+  restart: unless-stopped
+
+services:
+  rqlite-1:
+    <<: *rqlite
+    hostname: rqlite-1
+    command: -node-id 1 -http-adv-addr rqlite-1:4001 -raft-adv-addr rqlite-1:4002 -bootstrap-expect 3 -join rqlite-1:4002,rqlite-2:4002,rqlite-3:4002
+    volumes: [rqlite-1:/rqlite/file]
+    networks: [wan, dev-a]
+
+  rqlite-2:
+    <<: *rqlite
+    hostname: rqlite-2
+    command: -node-id 2 -http-adv-addr rqlite-2:4001 -raft-adv-addr rqlite-2:4002 -bootstrap-expect 3 -join rqlite-1:4002,rqlite-2:4002,rqlite-3:4002
+    volumes: [rqlite-2:/rqlite/file]
+    networks: [wan, dev-b]
+
+  rqlite-3:
+    <<: *rqlite
+    hostname: rqlite-3
+    command: -node-id 3 -http-adv-addr rqlite-3:4001 -raft-adv-addr rqlite-3:4002 -bootstrap-expect 3 -join rqlite-1:4002,rqlite-2:4002,rqlite-3:4002
+    volumes: [rqlite-3:/rqlite/file]
+    networks: [wan, dev-c]
+
+  app-a:
+    <<: *app
+    environment: {DEVICE: A, RQLITE_URL: "http://rqlite-1:4001"}
+    ports: ["127.0.0.1:8081:8080"]
+    volumes: [app-a:/data]
+    networks: [dev-a]
+
+  app-b:
+    <<: *app
+    environment: {DEVICE: B, RQLITE_URL: "http://rqlite-2:4001"}
+    ports: ["127.0.0.1:8082:8080"]
+    volumes: [app-b:/data]
+    networks: [dev-b]
+
+  app-c:
+    <<: *app
+    environment: {DEVICE: C, RQLITE_URL: "http://rqlite-3:4001"}
+    ports: ["127.0.0.1:8083:8080"]
+    volumes: [app-c:/data]
+    networks: [dev-c]
+
+networks:
+  wan:
+  dev-a:
+  dev-b:
+  dev-c:
+
+volumes:
+  rqlite-1:
+  rqlite-2:
+  rqlite-3:
+  app-a:
+  app-b:
+  app-c:
