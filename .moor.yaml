@@ -1,0 +1,11 @@
+brief: >
+  Showcase of rqlite (Raft + SQLite) for distributed local-first apps.
+  Three rqlite nodes, three "devices" (Go app + web UI) at
+  localhost:8081-8083. Writes commit through Raft when the device's node
+  has quorum, and queue in a local SQLite outbox when it does not.
+  `make up` starts it, `make demo` runs the scripted failover walkthrough.
+setup: |
+  command -v docker >/dev/null || (curl -fsSL https://get.docker.com | sudo sh)
+  command -v jq >/dev/null || sudo apt-get install -y jq
+  sudo chmod 666 /var/run/docker.sock
+  docker compose up -d --build

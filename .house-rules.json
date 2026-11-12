@@ -1,0 +1,6 @@
+{
+  "$schema": "https://raw.githubusercontent.com/IniZio/groundwork/main/plugins/house-rules/house-rules.schema.json",
+  "rules": {
+    "commit-message": ["error", { "preset": "conventional" }]
+  }
+}
